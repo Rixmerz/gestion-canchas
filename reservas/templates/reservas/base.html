@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Arriendo de canchas{% endblock %}</title>
+  <style>
+    :root{
+      --fondo:#0f1512; --panel:#17201c; --panel2:#1d2822; --borde:#2b3a32;
+      --texto:#e6efe9; --suave:#9db3a6; --verde:#3ddc84; --verde-osc:#1f6b41;
+      --ambar:#f2b544; --rojo:#ff6b6b; --azul:#5aa9e6;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--fondo);color:var(--texto);
+      font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+    a{color:var(--verde);text-decoration:none}
+    header{background:var(--panel);border-bottom:1px solid var(--borde);padding:14px 24px;
+      display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+    header .marca{font-weight:700;font-size:17px;letter-spacing:.2px}
+    header .marca span{color:var(--verde)}
+    header nav{display:flex;gap:16px;margin-left:auto;flex-wrap:wrap}
+    header nav a{color:var(--suave);padding:6px 10px;border-radius:8px}
+    header nav a.activo{color:var(--texto);background:var(--panel2)}
+    .etiqueta-poc{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+      background:var(--verde-osc);color:#eafff2;padding:3px 8px;border-radius:999px}
+    main{max-width:1080px;margin:0 auto;padding:24px}
+    h1{font-size:22px;margin:0 0 4px}
+    .sub{color:var(--suave);margin:0 0 22px;font-size:14px}
+    .tarjeta{background:var(--panel);border:1px solid var(--borde);border-radius:14px;
+      padding:18px;margin-bottom:18px}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--borde);vertical-align:middle}
+    th{color:var(--suave);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+    tr:last-child td{border-bottom:none}
+    .chip{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;
+      border:1px solid var(--borde);color:var(--suave)}
+    .chip.pendiente_pago,.chip.pendiente_pago,.chip.pendiente{color:var(--ambar);border-color:#5a4620}
+    .chip.pagada{color:var(--verde);border-color:var(--verde-osc)}
+    .chip.vencida{color:var(--rojo);border-color:#5a2b2b}
+    .chip.cancelada{color:var(--suave)}
+    .chip.bloqueado{color:var(--rojo);border-color:#5a2b2b}
+    button,.boton{font:inherit;font-size:13px;padding:7px 13px;border-radius:9px;cursor:pointer;
+      border:1px solid var(--borde);background:var(--panel2);color:var(--texto)}
+    button.primario{background:var(--verde);border-color:var(--verde);color:#08120c;font-weight:600}
+    button.primario:disabled{background:var(--panel2);border-color:var(--borde);
+      color:var(--suave);cursor:not-allowed;font-weight:400}
+    button.peligro{color:var(--rojo)}
+    select,input{font:inherit;padding:7px 10px;border-radius:9px;border:1px solid var(--borde);
+      background:var(--panel2);color:var(--texto)}
+    .fila{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .avisos{margin-bottom:18px;display:grid;gap:8px}
+    .aviso{padding:11px 14px;border-radius:11px;border:1px solid var(--borde);
+      background:var(--panel);font-size:14px}
+    .aviso.success{border-color:var(--verde-osc);background:#12241a}
+    .aviso.error{border-color:#5a2b2b;background:#241414}
+    .aviso.warning{border-color:#5a4620;background:#241d12}
+    .grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px}
+    .bloque{border:1px solid var(--borde);border-radius:12px;padding:12px;background:var(--panel2)}
+    .bloque .hora{font-size:17px;font-weight:600;letter-spacing:.3px}
+    .bloque .estado{font-size:12px;color:var(--suave);margin:5px 0 10px;min-height:32px}
+    .bloque.libre{border-color:var(--verde-osc)}
+    .bloque.tomado{opacity:.72}
+    .bloque form{margin:0}
+    .bloque button{width:100%}
+    .pie{color:var(--suave);font-size:12.5px;margin-top:26px;line-height:1.7}
+    .campo{margin-bottom:14px}
+    .campo label{display:block;font-size:13px;color:var(--suave);margin-bottom:5px}
+    .campo input{width:100%}
+    .campo .ayuda{font-size:12px;color:var(--suave);margin-top:5px}
+    .campo .error{font-size:12.5px;color:var(--rojo);margin-top:5px}
+    .angosto{max-width:460px;margin:0 auto}
+    code{background:var(--panel2);padding:1.5px 6px;border-radius:6px;font-size:12.5px}
+  </style>
+</head>
+<body>
+<header>
+  <div class="marca">⚽ Arriendo de <span>Canchas</span></div>
+  <span class="etiqueta-poc">MVP · SQLite3</span>
+  <nav>
+    <a href="{% url 'reservas:agenda' %}" class="{% if seccion == 'agenda' %}activo{% endif %}">Agenda</a>
+    {% if user.is_authenticated %}
+      {% if user.es_administrador %}
+        <a href="{% url 'reservas:faltas' %}" class="{% if seccion == 'faltas' %}activo{% endif %}">Faltas</a>
+        <a href="{% url 'admin:index' %}">Administración</a>
+      {% else %}
+        <a href="{% url 'reservas:mis_reservas' %}" class="{% if seccion == 'mis_reservas' %}activo{% endif %}">Mis reservas</a>
+      {% endif %}
+      <span class="chip">{{ user.get_full_name|default:user.username }}{% if user.bloqueado %} · BLOQUEADO{% endif %}</span>
+      <form method="post" action="{% url 'reservas:logout' %}" style="margin:0">
+        {% csrf_token %}<button type="submit">Salir</button>
+      </form>
+    {% else %}
+      <a href="{% url 'reservas:login' %}">Ingresar</a>
+      <a href="{% url 'reservas:registro' %}">Crear cuenta</a>
+    {% endif %}
+  </nav>
+</header>
+<main>
+  {% if messages %}
+    <div class="avisos">
+      {% for mensaje in messages %}
+        <div class="aviso {{ mensaje.tags }}">{{ mensaje }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% block contenido %}{% endblock %}
+  <p class="pie">
+    Producto Mínimo Viable · persistencia en <code>SQLite3</code> · solo los ítems <strong>Must</strong> del MoSCoW.<br>
+    Zona horaria de operación: <strong>America/Santiago</strong> · anticipación mínima 30 min (RN-01) ·
+    ventana de pago 30 min (RN-02) · bloqueo a las 10 faltas (RN-05).
+  </p>
+</main>
+</body>
+</html>

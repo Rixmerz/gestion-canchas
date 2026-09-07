@@ -1,0 +1,31 @@
+{% extends "reservas/base.html" %}
+{% block titulo %}Ingresar{% endblock %}
+
+{% block contenido %}
+<div class="angosto">
+  <h1>Ingresar</h1>
+  <p class="sub">Los administradores del recinto ingresan con la misma cuenta.</p>
+
+  <div class="tarjeta">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="aviso error">Usuario o contraseña incorrectos.</div>
+      {% endif %}
+      {% for campo in form %}
+        <div class="campo">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% for error in campo.errors %}<div class="error">{{ error }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="primario" style="width:100%">Ingresar</button>
+    </form>
+  </div>
+
+  <p class="sub" style="text-align:center">
+    ¿No tienes cuenta? <a href="{% url 'reservas:registro' %}">Crear una</a>
+  </p>
+</div>
+{% endblock %}
