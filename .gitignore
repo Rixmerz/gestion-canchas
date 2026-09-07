@@ -13,6 +13,10 @@ db.sqlite3-journal
 staticfiles/
 media/
 
+# Front (Deno/Vite)
+node_modules/
+dist/
+
 # Entorno
 .env
 .env.local
