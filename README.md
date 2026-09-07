@@ -19,15 +19,17 @@ Zona horaria de operación: **`America/Santiago`** (Santiago de Chile).
 
 ## Estructura del repositorio por ramas
 
-| Rama | Entregable | Persistencia | Alcance |
-|------|-----------|--------------|---------|
+| Rama | Entregable | Stack | Alcance |
+|------|-----------|-------|---------|
 | **`main`** | Documentación | — | Problema, solución y MoSCoW. Sin código de aplicación. |
-| **`eva1`** | **PoC** | Archivos **JSON** | Prueba de viabilidad de las reglas de negocio críticas. Sin base de datos, sin ORM, sin migraciones, sin login. |
-| **`eva2`** | **MVP** | **SQLite3** | Solo los ítems **Must (M-01 … M-18)** del MoSCoW: modelo relacional, autenticación, roles, Django Admin, ciclo completo solicitud → pago → falta → bloqueo. |
+| **`eva1`** | **PoC** | Django · archivos **JSON** | Prueba de viabilidad de las reglas de negocio críticas. Sin base de datos, sin ORM, sin migraciones, sin login. |
+| **`eva2`** | **MVP** | Django · **SQLite3** | Solo los ítems **Must (M-01 … M-18)** del MoSCoW: modelo relacional, autenticación, roles, Django Admin, ciclo completo solicitud → pago → falta → bloqueo. |
+| **`eva3`** | **MVP desacoplado** | **Django REST Framework** + **React (Deno)** + **shadcn/ui** · SQLite3 | El mismo alcance de `eva2`, migrado a API REST y SPA. Mismo dominio, mismas reglas, misma base de datos. |
 
 ```bash
 git checkout eva1   # Prueba de Concepto (JSON)
 git checkout eva2   # Producto Mínimo Viable (SQLite3)
+git checkout eva3   # MVP desacoplado (DRF + React/Deno)
 ```
 
 Cada rama trae su propio `README.md` con las instrucciones de instalación y ejecución.
@@ -63,6 +65,11 @@ y toda la aritmética en hora de Santiago con horario de verano (RN-07).
 
 ## Stack
 
-- Python 3.13
-- Django 5.2 LTS
-- SQLite3 (rama `eva2`) / archivos JSON (rama `eva1`)
+| Capa | `eva1` | `eva2` | `eva3` |
+|------|--------|--------|--------|
+| Lenguaje | Python 3.13 | Python 3.13 | Python 3.13 · TypeScript |
+| Backend | Django 5.2 | Django 5.2 | Django 5.2 + Django REST Framework |
+| Persistencia | Archivos JSON | SQLite3 | SQLite3 |
+| Front | Plantillas de Django | Plantillas de Django | React 19 sobre **Deno** (Vite) con **shadcn/ui** y Tailwind v4 |
+| Panel de gestión | Pantalla propia | Django Admin | Django Admin + pantalla propia en la SPA |
+| Pruebas | 25 (reglas puras) | 39 | 68 (36 de dominio + 32 de la API) |
