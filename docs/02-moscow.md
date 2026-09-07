@@ -128,8 +128,15 @@ de quién y cuándo (M-12), vista de faltas para el administrador (M-14), "Mis r
 
 | Categoría | Ítems | Rama que los implementa |
 |-----------|-------|-------------------------|
-| Must | 18 (M-01 … M-18) | `eva2` — MVP con SQLite3 |
+| Must | 18 (M-01 … M-18) | `eva2` — MVP con SQLite3 · `eva3` — el mismo alcance sobre DRF + React |
 | Should | 9 (S-01 … S-09) | No implementados |
 | Could | 9 (C-01 … C-09) | No implementados |
 | Won't | 8 (W-01 … W-08) | Fuera de alcance |
 | Subconjunto PoC | 9 reglas críticas | `eva1` — PoC con JSON |
+
+**Nota sobre `eva3`.** La migración a Django REST Framework + React **no cambia el
+alcance**: implementa exactamente los mismos 18 ítems Must, con las mismas reglas y la
+misma base de datos. Es un cambio de arquitectura de entrega, no de producto. En
+particular, **C-02 (API REST para consumo de terceros) sigue siendo un Could**: `eva3`
+expone la API porque su propio front la necesita, no como producto para integradores —
+no hay versionado, ni contrato público, ni documentación OpenAPI, ni claves de terceros.

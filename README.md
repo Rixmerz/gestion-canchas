@@ -1,188 +1,226 @@
-# `eva2` — Producto Mínimo Viable (MVP) · persistencia en **SQLite3**
+# `eva3` — MVP desacoplado · **Django REST Framework** + **React (Deno)** + **shadcn/ui**
 
-Rama del **MVP** del sistema de arrendamiento de canchas de fútbol. Aplicación **Django**
-con base de datos **SQLite3**, autenticación, roles y Django Admin.
+Migración de la rama [`eva2`](../../tree/eva2) a una arquitectura de dos piezas:
+Django deja de renderizar HTML y expone una **API REST**; el front pasa a ser una **SPA
+de React** servida por **Deno**, con componentes de **shadcn/ui** sobre Tailwind CSS v4.
 
-> **Alcance: solo los ítems _Must_ del MoSCoW** (M-01 … M-18).
-> Ni un requisito Should, Could o Won't fue implementado.
+> **El alcance no cambia: siguen siendo exactamente los 18 ítems _Must_ del MoSCoW.**
+> Mismas reglas de negocio, misma base SQLite3, mismo Django Admin. Lo que cambia es cómo
+> se entrega.
 >
 > Documentación: [`docs/01-problema-y-solucion.md`](docs/01-problema-y-solucion.md) ·
-> [`docs/02-moscow.md`](docs/02-moscow.md) · PoC en la rama [`eva1`](../../tree/eva1).
+> [`docs/02-moscow.md`](docs/02-moscow.md) · PoC en [`eva1`](../../tree/eva1) ·
+> MVP monolítico en [`eva2`](../../tree/eva2).
 
 ---
 
-## Instalación
+## Arquitectura
+
+```
+┌──────────────────────────────┐         ┌───────────────────────────────────────┐
+│  SPA · React 19 + Deno       │  HTTP   │  Django 5.2 + Django REST Framework   │
+│  Vite · Tailwind v4          │ ──────► │                                       │
+│  shadcn/ui · react-router    │  JSON   │  api/        cáscara REST delgada     │
+│  localhost:5173              │ ◄────── │  reservas/   dominio (sin cambios)    │
+└──────────────────────────────┘  Token  │    reglas.py     RN-01 … RN-07        │
+                                         │    servicios.py  casos de uso         │
+                                         │    models.py     SQLite3              │
+                                         │  /admin/     panel del recinto        │
+                                         │  localhost:8000                       │
+                                         └───────────────────────────────────────┘
+```
+
+**La regla que ordena todo:** `api/` no contiene lógica de negocio. Valida el formato de
+entrada, llama a `reservas.servicios` y serializa el resultado. `reglas.py` y
+`servicios.py` son **los mismos archivos de `eva2`**, sin una línea cambiada. Por eso la
+migración no pudo introducir una segunda verdad sobre cuándo se puede reservar.
+
+### Cómo viaja una regla infringida
+
+En `eva2`, romper RN-01 era un mensaje en una plantilla. Aquí es un contrato HTTP:
+
+```http
+POST /api/reservas/   {"cancha": 3, "inicio": "2026-09-08T20:00:00-03:00"}
+
+HTTP/1.1 409 Conflict
+{
+  "detail": "Solo se puede solicitar con al menos 30 minutos de anticipación: faltan 12 minutos.",
+  "regla": "RN-01",
+  "codigo": "regla_violada"
+}
+```
+
+**409 Conflict**, no 400: la petición está bien formada; es el estado del negocio el que
+la rechaza. El identificador de la regla viaja en el cuerpo, así que la SPA puede mostrar
+*qué* regla se infringió, y otro cliente podría reaccionar distinto según cuál sea.
+
+---
+
+## Levantar el proyecto
+
+Se necesitan **dos terminales**: la API y el front.
+
+### 1 · API (Django + DRF)
 
 ```bash
 git clone https://github.com/Rixmerz/gestion-canchas.git
 cd gestion-canchas
-git checkout eva2
+git checkout eva3
 
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 python manage.py migrate
-python manage.py sembrar_demo      # canchas, usuarios y un escenario de prueba
-python manage.py runserver
+python manage.py sembrar_demo
+python manage.py runserver          # http://127.0.0.1:8000
 ```
 
-Aplicación: **http://127.0.0.1:8000/** · Administración: **http://127.0.0.1:8000/admin/**
+### 2 · Front (Deno + React)
 
-### Cuentas que crea `sembrar_demo`
+```bash
+cd frontend
+deno task dev                       # http://localhost:5173
+```
+
+Deno instala las dependencias npm solo (`deno.json` + `deno.lock`); no hace falta Node ni
+`npm install`. Vite proxea `/api` hacia `127.0.0.1:8000`, así que en desarrollo no hay
+problemas de CORS ni URLs absolutas en el código.
+
+| Dirección | Qué es |
+|-----------|--------|
+| http://localhost:5173 | La aplicación (SPA de React) |
+| http://127.0.0.1:8000/api/ | API navegable de DRF |
+| http://127.0.0.1:8000/admin/ | Django Admin — panel de gestión del recinto |
+
+### Cuentas de `sembrar_demo`
 
 | Usuario | Clave | Perfil |
 |---------|-------|--------|
 | `admin` | `canchas2026` | Superusuario |
-| `encargado` | `canchas2026` | **Administrador normal** (`is_staff`, rol `ADMIN`, sin ser superusuario) |
+| `encargado` | `canchas2026` | Administrador normal (`is_staff`, rol `ADMIN`, no superusuario) |
 | `cmunoz`, `drojas`, `ivera`, `pcardenas` | `canchas2026` | Clientes |
 
-Son credenciales de demostración para desarrollo local. Para un superusuario propio:
-`python manage.py createsuperuser`.
+Credenciales de demostración para desarrollo local.
 
 ### Pruebas
 
 ```bash
-python manage.py test
+python manage.py test          # 68 pruebas: 36 de dominio + 32 de la API
+cd frontend && deno task check # verificación de tipos de la SPA
+cd frontend && deno task build # build de producción a frontend/dist/
 ```
 
-39 pruebas, una por criterio de aceptación del MVP.
-
 ---
 
-## Cómo se cubre cada ítem Must
+## La API
 
-| ID | Requisito | Dónde está |
-|----|-----------|-----------|
-| **M-01** | Modelo relacional en SQLite3 con migraciones | `reservas/models.py`, `reservas/migrations/` |
-| **M-02** | Registro, login y logout | `reservas/forms.py`, `reservas/urls.py`, `/registro/`, `/ingresar/` |
-| **M-03** | Roles `ADMIN` y `CLIENTE` con autorización por vista | `Usuario.rol`, `Usuario.es_administrador`, `views._solo_administradores` |
-| **M-04** | Django Admin operativo | `reservas/admin.py` — canchas, reservas, faltas y usuarios |
-| **M-05** | Administrador normal, no superusuario | `reservas/permisos.py` — grupo «Administradores de recinto», creado tras cada `migrate` |
-| **M-06** | Catálogo de canchas | `Cancha` + `CanchaAdmin` |
-| **M-07** | Agenda de disponibilidad | `servicios.bloques_del_dia`, `/` |
-| **M-08** | Solicitud de reserva por el cliente | `servicios.solicitar_reserva`, `/solicitar/` |
-| **M-09** | RN-01 · anticipación de 30 min | `reglas.validar_anticipacion` |
-| **M-10** | RN-02 · ventana de pago | `reglas.calcular_vence_en` |
-| **M-11** | RN-06 · sin solapamiento | `reglas.validar_sin_solapamiento` + `UniqueConstraint` en la base de datos |
-| **M-12** | RN-03 · confirmación manual del pago | `servicios.confirmar_pago`, acción del `ReservaAdmin` |
-| **M-13** | RN-04 · vencimiento y falta | `servicios.vencer_reservas_pendientes` |
-| **M-14** | Vista de faltas | `/faltas/` + `FaltaAdmin` + contador en `UsuarioAdmin` |
-| **M-15** | RN-05 · bloqueo a las 10 faltas | `servicios.evaluar_bloqueo`, `reglas.validar_cliente_habilitado` |
-| **M-16** | RN-07 · zona horaria de Santiago | `settings.TIME_ZONE = "America/Santiago"`, `USE_TZ = True` |
-| **M-17** | Mis reservas | `/mis-reservas/` |
-| **M-18** | Vencimiento programable | `python manage.py vencer_reservas` + barrido perezoso |
+Autenticación por **token** en la cabecera `Authorization: Token <clave>`. La sesión de
+Django sigue habilitada para poder navegar la API desde el navegador con la misma cuenta
+del admin.
 
----
+| Método | Ruta | Quién | Qué hace |
+|--------|------|-------|----------|
+| `POST` | `/api/auth/registro/` | público | Crea un cliente y devuelve token + perfil (M-02) |
+| `POST` | `/api/auth/login/` | público | Token + perfil |
+| `POST` | `/api/auth/logout/` | sesión | Invalida el token |
+| `GET` | `/api/auth/yo/` | sesión | Perfil, rol, faltas vigentes y estado de bloqueo |
+| `GET` | `/api/canchas/` | público | Catálogo de canchas activas (M-06) |
+| `GET` | `/api/agenda/?cancha=&fecha=` | público | Grilla del día en hora de Santiago (M-07) |
+| `GET` | `/api/reservas/` | sesión | Mis reservas; todas si soy administrador (M-17, RN-08) |
+| `POST` | `/api/reservas/` | cliente | **Solicitar un bloque** (M-08) |
+| `POST` | `/api/reservas/{id}/confirmar-pago/` | admin | Convierte la solicitud en reserva real (M-12, RN-03) |
+| `POST` | `/api/reservas/{id}/cancelar/` | admin | Libera el bloque, sin generar falta |
+| `GET` | `/api/faltas/` | admin | Detalle de faltas registradas (M-14) |
+| `GET` | `/api/faltas/resumen/` | admin | Clientes con faltas, de más a menos (M-14) |
+| `POST` | `/api/clientes/{id}/desbloquear/` | admin | Habilita y anula sus faltas vigentes (M-15) |
 
-## El ciclo de negocio
+Todos los endpoints de lectura corren antes el barrido de vencimientos (RN-04), así que
+el estado que devuelve la API siempre está al día sin depender de un cron.
 
-```
-                 solicita (cliente, /solicitar/)
-   [ no existe ] ────────────────────────────► [ PENDIENTE_PAGO ]
-                                                       │
-              admin confirma el pago en el Django Admin│  vence la ventana
-        ┌──────────────────────────────────────────────┴────────────────────┐
-        ▼                                                                   ▼
-  [ PAGADA ]  reserva real                                     [ VENCIDA ]  + FALTA
-        │                                                       libera el bloque
-        │ admin cancela
-        ▼
-  [ CANCELADA ]  libera el bloque, sin falta
+### Probar la API a mano
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:8000/api/auth/login/ \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"cmunoz","password":"canchas2026"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+curl -s "http://127.0.0.1:8000/api/agenda/?fecha=$(date -v+1d +%F)" | python3 -m json.tool | head -30
+
+# Solicitar un bloque a menos de 30 minutos → 409 con la regla RN-01
+curl -s -X POST http://127.0.0.1:8000/api/reservas/ \
+  -H "Authorization: Token $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"cancha": 1, "inicio": "'"$(date -v+10M -u +%FT%TZ)"'"}'
 ```
 
-**Reglas aplicadas al solicitar**, en este orden y todas en el servidor:
-
-1. La cancha está activa y quien solicita es un cliente, no un administrador.
-2. **RN-05** — el cliente no está bloqueado ni llegó a 10 faltas vigentes.
-3. **RN-01** — faltan al menos 30 minutos para el inicio del bloque.
-4. **RN-06** — la cancha no tiene otra reserva vigente superpuesta.
-5. **RN-02** — se calcula `vence_en = min(creada_en + 30 min, inicio)`.
-
-Si alguna falla se lanza `reglas.ReglaViolada` y la transacción no deja rastro.
-
 ---
 
-## Probarlo a mano en 5 minutos
-
-1. Entrar como **`cmunoz`** y solicitar un bloque libre en la agenda → queda
-   `PENDIENTE_PAGO` con su hora de vencimiento visible en **Mis reservas**.
-2. Entrar en otra ventana como **`drojas`** e intentar el **mismo bloque** → lo rechaza
-   **RN-06**.
-3. Intentar un bloque que empieza en menos de 30 minutos → lo rechaza **RN-01**.
-4. Entrar como **`encargado`** en `/admin/reservas/reserva/`, seleccionar la solicitud y
-   aplicar la acción **«Confirmar pago»** → pasa a `PAGADA`, queda registrado quién y
-   cuándo, y deja de vencer.
-5. Dejar vencer otra solicitud sin pagarla y ejecutar `python manage.py vencer_reservas`
-   (o simplemente recargar la agenda) → pasa a `VENCIDA`, el bloque se libera y aparece
-   la falta.
-6. En **Faltas** (`/faltas/`) está **`ivera`** con 9 faltas del escenario de prueba. Al
-   solicitar y dejar vencer una más llega a 10 y queda **bloqueado** automáticamente: el
-   sistema le rechaza toda nueva solicitud (**RN-05**).
-7. Para habilitarlo: `/admin/reservas/usuario/` → seleccionar `ivera` → acción
-   **«Desbloquear y anular sus faltas vigentes»**.
-
----
-
-## Estructura
+## El front
 
 ```
-manage.py
-config/settings.py           SQLite3, AUTH_USER_MODEL, TIME_ZONE America/Santiago
-reservas/
-  models.py                  Usuario · Cancha · Reserva · Falta  (M-01)
-  reglas.py                  Python puro: RN-01, RN-02, RN-04, RN-05, RN-06, RN-07
-  servicios.py               casos de uso sobre el ORM, en transacciones
-  admin.py                   panel de gestión: confirmar pago, cancelar, faltas, bloqueos
-  permisos.py                grupo del administrador normal (M-05)
-  views.py  urls.py  forms.py
-  templates/
-  migrations/0001_initial.py
-  management/commands/
-    vencer_reservas.py       barrido de vencimientos (M-18), apto para cron
-    sembrar_demo.py          escenario de demostración
-  tests.py                   39 pruebas
+frontend/
+  deno.json               tareas y dependencias npm (sin package.json, sin node_modules a mano)
+  deno.lock               instalación reproducible
+  vite.config.ts          plugins de React y Tailwind v4 + proxy /api → :8000
+  components.json         configuración de shadcn/ui (para agregar más componentes)
+  src/
+    index.css             tokens del sistema de diseño (Tailwind v4, configuración en CSS)
+    App.tsx               rutas y guardas por rol
+    lib/
+      api.ts              cliente HTTP: tokens, errores, ErrorDeRegla
+      tipos.ts            las formas que devuelve la API
+      sesion.tsx          contexto de sesión, revalidado contra /auth/yo/
+      formato.ts          fechas y pesos en convención chilena
+      utils.ts            cn() de shadcn
+    components/
+      ui/                 shadcn/ui: button, card, badge, input, label, table, alert, select
+      layout.tsx  estado.tsx  aviso.tsx
+    routes/
+      agenda.tsx  ingresar.tsx  registro.tsx
+      mis-reservas.tsx  gestion.tsx  faltas.tsx
 ```
 
-`reglas.py` no importa Django: es el mismo núcleo validado en la PoC (rama `eva1`) y se
-reutiliza aquí sin cambios sobre el modelo relacional.
+**shadcn/ui no es una dependencia**: sus componentes viven en `src/components/ui/` como
+código propio, que es exactamente su premisa. `components.json` queda configurado por si
+se quiere agregar más con `deno run -A npm:shadcn@latest add <componente>`.
+
+**Deno sin Node.** Las dependencias npm se declaran en `deno.json` con especificadores
+`npm:` y se instalan solas al correr la tarea. `deno task check` verifica tipos con el
+TypeScript que trae Deno.
 
 ---
 
-## Decisiones de diseño
+## Decisiones de la migración
 
-**Modelo de usuario propio desde el día uno.** `AUTH_USER_MODEL = "reservas.Usuario"`
-extiende `AbstractUser` con `rol`, `telefono`, `bloqueado` y `bloqueado_en`. Cambiar el
-modelo de usuario después de la primera migración es caro; hacerlo al inicio no cuesta nada.
+**El dominio no se tocó.** `reservas/reglas.py`, `reservas/servicios.py` y
+`reservas/models.py` son idénticos a `eva2`. Lo que desapareció fue la capa de
+presentación de Django: `views.py`, `urls.py`, `forms.py` y las plantillas. Si la
+migración hubiera exigido cambiar una regla, habría sido señal de que la regla estaba
+enredada con la interfaz.
 
-**El bloqueo no es un campo que alguien edita a mano.** Lo escribe `evaluar_bloqueo()` al
-cerrar el barrido de vencimientos. El administrador puede desbloquear, y esa acción anula
-las faltas vigentes: si no lo hiciera, el siguiente barrido volvería a bloquear al cliente
-—exactamente el problema que dejó al descubierto la PoC—. Las faltas anuladas quedan como
-historial (`vigente=False`), no se borran.
+**El Django Admin se queda.** Es un ítem Must (M-04, M-05) y sigue siendo la herramienta
+del encargado para todo lo que no es el día a día: crear canchas, corregir datos,
+desbloquear clientes, revisar el historial. La SPA no lo reemplaza; le agrega el atajo
+operativo de confirmar pagos sin entrar al admin.
 
-**Doble barrera contra la sobreventa.** El servicio valida el solapamiento dentro de una
-transacción, y la tabla tiene un `UniqueConstraint` condicional sobre
-`(cancha, inicio)` para las reservas vigentes. Si dos solicitudes corren la misma carrera,
-la base de datos decide y el `IntegrityError` se traduce a un mensaje de negocio.
+**Token, no JWT.** Un token opaco de DRF alcanza para un recinto: no hay refresh, ni
+rotación, ni claims que verificar sin tocar la base. JWT resolvería un problema que este
+sistema no tiene.
 
-**Una falta por reserva, garantizado por el esquema.** `Falta.reserva` es un
-`OneToOneField`: repetir el barrido no puede duplicar una falta.
+**El servidor es el único reloj.** El front nunca calcula si faltan 30 minutos: pinta lo
+que la API le dice (`disponible`, `a_tiempo`, `minutos_para_vencer`). El reloj del
+navegador del cliente no puede abrir una reserva fuera de plazo.
 
-**Vencimiento sin broker de tareas.** El barrido corre de forma perezosa al abrir la
-agenda o solicitar, y además está disponible como comando para cron. Meter Celery y Redis
-en un MVP de un recinto sería sobre-ingeniería.
-
-**Toda la hora en UTC, toda la presentación en Santiago.** `USE_TZ = True` con
-`TIME_ZONE = "America/Santiago"`. Las sumas y comparaciones de fechas pasan por
-`reglas.sumar`, `reglas.diferencia` y `reglas.en_utc`, que trabajan en UTC: sumar o restar
-directamente sobre datetimes con zona opera el reloj de pared y se rompe en el cambio de
-horario chileno.
+**Paginación.** `PAGE_SIZE = 50` en DRF; las listas devuelven `{count, next, previous,
+results}`. El cliente lee `.results`. Canchas va sin paginar: son cuatro.
 
 ---
 
-## Lo que este MVP deliberadamente **no** hace
+## Lo que sigue sin hacer
 
-Pago en línea (C-01), notificaciones por correo (S-01), cancelación por el propio cliente
-(S-02), caducidad automática de faltas (S-04), reportes de ocupación (S-05), bloques de
-duración variable (S-06), reservas recurrentes (S-07), API REST (C-02) ni multi-sede
-(C-03). Todo está clasificado y justificado en [`docs/02-moscow.md`](docs/02-moscow.md).
+Igual que en `eva2`: pago en línea (C-01), notificaciones (S-01), cancelación por el
+cliente (S-02), caducidad de faltas (S-04), reportes (S-05), bloques de duración variable
+(S-06), reservas recurrentes (S-07) y multi-sede (C-03).
+
+Propios de esta arquitectura y también fuera de alcance: documentación OpenAPI/Swagger,
+versionado de la API, refresh de tokens, service worker / modo offline, y despliegue del
+front como estático detrás de la misma URL que la API.

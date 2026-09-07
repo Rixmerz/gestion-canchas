@@ -1,5 +1,9 @@
 """
-Pruebas del MVP: una por criterio de aceptación (docs/01-problema-y-solucion.md §6).
+Pruebas del dominio: reglas y casos de uso sobre el ORM.
+
+Cubren los criterios de aceptación del MVP (docs/01-problema-y-solucion.md §6)
+en la capa donde viven de verdad, sin pasar por HTTP. La capa REST se prueba
+aparte, en `api/tests.py`.
 
     python manage.py test
 """
@@ -8,7 +12,6 @@ from datetime import timedelta
 
 from django.contrib.auth.models import Group
 from django.test import TestCase
-from django.urls import reverse
 from django.utils import timezone
 
 from . import reglas, servicios
@@ -37,11 +40,17 @@ class BaseDelRecinto(TestCase):
         self.encargado.groups.add(Group.objects.get(name=NOMBRE_GRUPO))
 
     def bloque(self, horas=3):
-        """Un bloque en punto, `horas` más adelante."""
-        inicio = timezone.localtime(timezone.now() + timedelta(hours=horas)).replace(
-            minute=0, second=0, microsecond=0
-        )
-        return inicio
+        """
+        Un bloque en punto, **al menos** `horas` más adelante.
+
+        Se redondea hacia arriba a propósito: truncar a la hora en punto puede
+        dejar el bloque a menos de 30 minutos —a las 20:41, `+1 hora` truncado
+        da las 21:00— y RN-01 lo rechazaría según la hora a la que se corran
+        las pruebas.
+        """
+        momento = timezone.localtime(timezone.now()) + timedelta(hours=horas)
+        en_punto = momento.replace(minute=0, second=0, microsecond=0)
+        return en_punto if en_punto == momento else reglas.sumar(en_punto, timedelta(hours=1))
 
     def solicitar(self, cliente=None, horas=3, cancha=None):
         return servicios.solicitar_reserva(
@@ -52,23 +61,8 @@ class BaseDelRecinto(TestCase):
 class SolicitarReserva(BaseDelRecinto):
     """M-08: el cliente aparta el bloque, no lo reserva."""
 
-    def test_un_anonimo_no_puede_solicitar(self):
-        respuesta = self.client.post(
-            reverse("reservas:solicitar"),
-            {"cancha_id": self.cancha.pk, "inicio": self.bloque().isoformat()},
-        )
-        self.assertEqual(respuesta.status_code, 302)
-        self.assertIn(reverse("reservas:login"), respuesta.url)
-        self.assertEqual(Reserva.objects.count(), 0)
-
-    def test_el_cliente_autenticado_crea_una_solicitud_pendiente(self):
-        self.client.force_login(self.cliente)
-        respuesta = self.client.post(
-            reverse("reservas:solicitar"),
-            {"cancha_id": self.cancha.pk, "inicio": self.bloque().isoformat(), "volver_a": "/"},
-        )
-        self.assertEqual(respuesta.status_code, 302)
-        reserva = Reserva.objects.get()
+    def test_crea_una_solicitud_pendiente_a_nombre_del_cliente(self):
+        reserva = self.solicitar()
         self.assertEqual(reserva.estado, Reserva.Estado.PENDIENTE_PAGO)
         self.assertEqual(reserva.cliente, self.cliente)
         self.assertEqual(reserva.precio, self.cancha.precio_hora)
@@ -317,15 +311,7 @@ class BloqueoPorFaltas(BaseDelRecinto):
 
 
 class RolesYAcceso(BaseDelRecinto):
-    """M-03, M-04, M-05, M-14: quién ve y hace qué."""
-
-    def test_el_cliente_no_entra_al_panel_de_faltas(self):
-        self.client.force_login(self.cliente)
-        self.assertEqual(self.client.get(reverse("reservas:faltas")).status_code, 403)
-
-    def test_el_administrador_ve_el_panel_de_faltas(self):
-        self.client.force_login(self.encargado)
-        self.assertEqual(self.client.get(reverse("reservas:faltas")).status_code, 200)
+    """M-03, M-04, M-05: el Django Admin sigue siendo el panel de gestión."""
 
     def test_el_administrador_no_superusuario_entra_al_django_admin(self):
         self.assertFalse(self.encargado.is_superuser)
@@ -338,34 +324,11 @@ class RolesYAcceso(BaseDelRecinto):
     def test_el_cliente_no_entra_al_django_admin(self):
         self.client.force_login(self.cliente)
         respuesta = self.client.get("/admin/", follow=True)
-        self.assertNotEqual(respuesta.status_code, 200 if respuesta.redirect_chain == [] else 0)
         self.assertContains(respuesta, "Iniciar sesión", status_code=200)
 
-    def test_el_cliente_solo_ve_sus_propias_reservas(self):
-        mia = self.solicitar()
-        ajena = self.solicitar(cliente=self.otro_cliente, horas=5)
-        self.client.force_login(self.cliente)
-        contenido = self.client.get(reverse("reservas:mis_reservas")).content.decode()
-        self.assertIn(f">{mia.pk}<", contenido)
-        self.assertNotIn(f">{ajena.pk}<", contenido)
-
-    def test_el_registro_crea_siempre_un_cliente(self):
-        respuesta = self.client.post(
-            reverse("reservas:registro"),
-            {
-                "username": "nuevo",
-                "first_name": "Ana",
-                "last_name": "Soto",
-                "email": "ana@example.cl",
-                "password1": "UnaClaveLarga2026",
-                "password2": "UnaClaveLarga2026",
-            },
-        )
-        self.assertEqual(respuesta.status_code, 302)
-        nuevo = Usuario.objects.get(username="nuevo")
-        self.assertEqual(nuevo.rol, Usuario.Rol.CLIENTE)
-        self.assertFalse(nuevo.is_staff)
-        self.assertFalse(nuevo.is_superuser)
+    def test_el_rol_decide_quien_es_administrador(self):
+        self.assertTrue(self.encargado.es_administrador)
+        self.assertFalse(self.cliente.es_administrador)
 
 
 class VistaDeFaltas(BaseDelRecinto):
@@ -422,9 +385,6 @@ class ZonaHoraria(BaseDelRecinto):
 
 class Agenda(BaseDelRecinto):
     """M-07."""
-
-    def test_la_agenda_es_publica(self):
-        self.assertEqual(self.client.get(reverse("reservas:agenda")).status_code, 200)
 
     def test_marca_el_bloque_tomado_como_no_disponible(self):
         # Un bloque dentro del horario del recinto, pasado mañana a las 20:00.

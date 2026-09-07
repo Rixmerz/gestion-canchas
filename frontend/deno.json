@@ -1,0 +1,42 @@
+{
+  "tasks": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno run -A npm:vite build",
+    "preview": "deno run -A npm:vite preview",
+    "check": "deno check --sloppy-imports src/main.tsx"
+  },
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "lib": ["deno.ns", "dom", "dom.iterable", "esnext"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "jsxImportSourceTypes": "npm:@types/react@^19.2.0",
+    "types": ["vite/client"]
+  },
+  "imports": {
+    "react": "npm:react@^19.2.0",
+    "react/jsx-runtime": "npm:react@^19.2.0/jsx-runtime",
+    "react-dom": "npm:react-dom@^19.2.0",
+    "react-dom/client": "npm:react-dom@^19.2.0/client",
+    "react-router": "npm:react-router@^7.9.5",
+    "@types/react": "npm:@types/react@^19.2.0",
+    "@types/react-dom": "npm:@types/react-dom@^19.2.0",
+
+    "@/": "./src/",
+
+    "@radix-ui/react-slot": "npm:@radix-ui/react-slot@^1.2.3",
+    "@radix-ui/react-label": "npm:@radix-ui/react-label@^2.1.7",
+    "@radix-ui/react-select": "npm:@radix-ui/react-select@^2.2.6",
+    "class-variance-authority": "npm:class-variance-authority@^0.7.1",
+    "clsx": "npm:clsx@^2.1.1",
+    "tailwind-merge": "npm:tailwind-merge@^3.3.1",
+    "lucide-react": "npm:lucide-react@^0.545.0",
+
+    "vite": "npm:vite@^7.1.9",
+    "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^5.0.4",
+    "tailwindcss": "npm:tailwindcss@^4.1.14",
+    "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.14"
+  },
+  "fmt": { "lineWidth": 100, "semiColons": true, "singleQuote": false },
+  "exclude": ["node_modules", "dist"]
+}

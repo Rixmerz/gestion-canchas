@@ -142,6 +142,23 @@ muere, el bloque se libera automáticamente y **se registra una falta al cliente
 | `main` | Documentación | — | Problema, solución y MoSCoW. |
 | `eva1` | **PoC** | Archivos **JSON** | Que las reglas de negocio críticas (RN-01, RN-02, RN-04, RN-05, RN-06, RN-07) son implementables y correctas, sin base de datos, sin ORM y sin migraciones. |
 | `eva2` | **MVP** | **SQLite3** | El sistema completo con los ítems **Must** del MoSCoW: modelo relacional, autenticación, Django Admin, roles y el ciclo completo solicitud → pago → falta → bloqueo. |
+| `eva3` | **MVP desacoplado** | **SQLite3** | El mismo alcance del MVP, migrado a **Django REST Framework** con una SPA de **React sobre Deno** y **shadcn/ui**. Mismo dominio, misma base de datos, mismas reglas: cambia la entrega, no el negocio. |
+
+### Por qué existe `eva3`
+
+El MVP de `eva2` renderiza HTML desde Django. Eso funciona, pero amarra la interfaz al
+servidor: no hay forma de que otra aplicación —una app móvil, un tótem en el recinto, una
+integración— consuma la misma lógica sin duplicarla. `eva3` corta esa amarra:
+
+* Django queda como **API REST** (`/api/`) más el Django Admin, que sigue siendo el panel
+  de gestión del recinto.
+* Las reglas de negocio **no se tocan**: `reservas/reglas.py` y `reservas/servicios.py`
+  son los mismos archivos. La capa REST es una cáscara delgada encima.
+* Una regla infringida deja de ser un mensaje en una plantilla y pasa a ser un
+  **HTTP 409** con el identificador de la regla (`{"detail": …, "regla": "RN-01"}`), que
+  cualquier cliente puede interpretar.
+* El front pasa a ser una **SPA de React** servida por **Deno**, con componentes de
+  **shadcn/ui**.
 
 ---
 

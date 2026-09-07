@@ -1,5 +1,10 @@
 """
-Configuración del MVP.
+Configuración del MVP en arquitectura desacoplada.
+
+Django deja de renderizar HTML: expone una API REST con Django REST Framework
+y el front lo consume una SPA de React servida por Deno. Lo único que Django
+sigue entregando por HTML es el Django Admin, que es el panel de gestión del
+recinto (M-04, M-05).
 
 Persistencia en SQLite3 (M-01) y horario de Santiago de Chile (M-16, RN-07).
 Alcance: únicamente los ítems Must del MoSCoW (ver docs/02-moscow.md).
@@ -23,11 +28,17 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
+    "rest_framework",
+    "rest_framework.authtoken",
     "reservas",
+    "api",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Antes de CommonMiddleware: la SPA vive en otro origen durante el desarrollo.
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -77,9 +88,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # M-02, M-03: modelo de usuario propio con rol y estado de bloqueo.
 AUTH_USER_MODEL = "reservas.Usuario"
-LOGIN_URL = "reservas:login"
-LOGIN_REDIRECT_URL = "reservas:agenda"
-LOGOUT_REDIRECT_URL = "reservas:agenda"
+LOGIN_URL = "admin:login"
 
 LANGUAGE_CODE = "es-cl"
 
@@ -92,3 +101,31 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
+# --- API REST ---------------------------------------------------------------
+# La SPA autentica con token (cabecera Authorization: Token <clave>). La sesión
+# se mantiene habilitada para poder navegar la API desde el navegador con la
+# misma cuenta que el Django Admin.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
+    "EXCEPTION_HANDLER": "api.errores.manejador_de_errores",
+    "DATETIME_FORMAT": "iso-8601",
+}
+
+# --- CORS -------------------------------------------------------------------
+# Orígenes del servidor de desarrollo de Vite/Deno.
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    "DJANGO_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+).split(",")
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
