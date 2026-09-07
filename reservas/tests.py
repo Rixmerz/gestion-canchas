@@ -37,11 +37,17 @@ class BaseDelRecinto(TestCase):
         self.encargado.groups.add(Group.objects.get(name=NOMBRE_GRUPO))
 
     def bloque(self, horas=3):
-        """Un bloque en punto, `horas` más adelante."""
-        inicio = timezone.localtime(timezone.now() + timedelta(hours=horas)).replace(
-            minute=0, second=0, microsecond=0
-        )
-        return inicio
+        """
+        Un bloque en punto, **al menos** `horas` más adelante.
+
+        Se redondea hacia arriba a propósito: truncar a la hora en punto puede
+        dejar el bloque a menos de 30 minutos —a las 20:41, `+1 hora` truncado
+        da las 21:00— y RN-01 lo rechazaría según la hora a la que se corran
+        las pruebas.
+        """
+        momento = timezone.localtime(timezone.now()) + timedelta(hours=horas)
+        en_punto = momento.replace(minute=0, second=0, microsecond=0)
+        return en_punto if en_punto == momento else reglas.sumar(en_punto, timedelta(hours=1))
 
     def solicitar(self, cliente=None, horas=3, cancha=None):
         return servicios.solicitar_reserva(
