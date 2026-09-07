@@ -1,0 +1,90 @@
+{% extends "canchas/base.html" %}
+{% block titulo %}Agenda · {{ cancha.nombre }}{% endblock %}
+
+{% block contenido %}
+{% if not canchas %}
+  <div class="tarjeta">No hay canchas activas en <code>data/canchas.json</code>.</div>
+{% else %}
+<h1>Disponibilidad</h1>
+<p class="sub">
+  Hora oficial del recinto: <strong>{{ hoy|date:"l d/m/Y H:i" }}</strong> (America/Santiago).
+  Solo se puede solicitar un bloque con al menos 30 minutos de anticipación.
+</p>
+
+<div class="tarjeta">
+  <div class="fila">
+    <form method="post" action="{% url 'canchas:elegir_cliente' %}" class="fila">
+      {% csrf_token %}
+      <input type="hidden" name="volver_a" value="{{ request.get_full_path }}">
+      <label for="cliente_id">Cliente:</label>
+      <select name="cliente_id" id="cliente_id" onchange="this.form.submit()">
+        {% for c in clientes %}
+          <option value="{{ c.id }}" {% if c.id == cliente.id %}selected{% endif %}>
+            {{ c.nombre }}{% if c.bloqueado %} — BLOQUEADO{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+      <noscript><button type="submit">Cambiar</button></noscript>
+    </form>
+
+    <span class="chip {% if cliente.bloqueado %}bloqueado{% endif %}">
+      {{ faltas_cliente }} / {{ limite_faltas }} faltas
+      {% if cliente.bloqueado %} · bloqueado{% endif %}
+    </span>
+  </div>
+</div>
+
+<div class="tarjeta">
+  <form method="get" class="fila">
+    <label for="cancha">Cancha:</label>
+    <select name="cancha" id="cancha">
+      {% for c in canchas %}
+        <option value="{{ c.id }}" {% if c.id == cancha.id %}selected{% endif %}>
+          {{ c.nombre }} — ${{ c.precio_hora }}/hora
+        </option>
+      {% endfor %}
+    </select>
+    <label for="fecha">Día:</label>
+    <input type="date" name="fecha" id="fecha" value="{{ dia|date:'Y-m-d' }}">
+    <button type="submit" class="primario">Ver</button>
+    <a class="boton" href="?cancha={{ cancha.id }}&amp;fecha={{ dia_anterior|date:'Y-m-d' }}">◀ día anterior</a>
+    <a class="boton" href="?cancha={{ cancha.id }}&amp;fecha={{ dia_siguiente|date:'Y-m-d' }}">día siguiente ▶</a>
+  </form>
+</div>
+
+<div class="tarjeta">
+  <h2 style="font-size:16px;margin:0 0 4px">{{ cancha.nombre }} · {{ dia|date:"l d \d\e F" }}</h2>
+  <p class="sub">{{ cancha.tipo }} · {{ cancha.superficie }} · ${{ cancha.precio_hora }} por hora</p>
+
+  <div class="grilla">
+    {% for bloque in bloques %}
+      <div class="bloque {% if bloque.disponible %}libre{% elif bloque.ocupante %}tomado{% endif %}">
+        <div class="hora">{{ bloque.inicio|date:"H:i" }} – {{ bloque.fin|date:"H:i" }}</div>
+        <div class="estado">
+          {% if bloque.ocupante %}
+            {% if bloque.ocupante.estado == "PAGADA" %}
+              <span class="chip pagada">Reservada (pagada)</span>
+            {% else %}
+              <span class="chip pendiente">Apartada, pendiente de pago</span>
+            {% endif %}
+          {% elif not bloque.a_tiempo %}
+            Fuera de plazo (RN-01)
+          {% else %}
+            Libre
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'canchas:solicitar' %}">
+          {% csrf_token %}
+          <input type="hidden" name="cancha_id" value="{{ cancha.id }}">
+          <input type="hidden" name="inicio" value="{{ bloque.inicio.isoformat }}">
+          <input type="hidden" name="volver_a" value="{{ request.get_full_path }}">
+          <button type="submit" class="primario" {% if not bloque.disponible or cliente.bloqueado %}disabled{% endif %}>
+            {% if bloque.ocupante %}No disponible{% elif not bloque.a_tiempo %}Muy tarde{% elif cliente.bloqueado %}Bloqueado{% else %}Solicitar{% endif %}
+          </button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

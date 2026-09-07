@@ -1,0 +1,32 @@
+{
+  "clientes": [
+    {
+      "id": 1,
+      "nombre": "Carlos Muñoz",
+      "email": "carlos.munoz@example.cl",
+      "telefono": "+56 9 8123 4567",
+      "bloqueado": false
+    },
+    {
+      "id": 2,
+      "nombre": "Daniela Rojas",
+      "email": "daniela.rojas@example.cl",
+      "telefono": "+56 9 7654 3210",
+      "bloqueado": false
+    },
+    {
+      "id": 3,
+      "nombre": "Ignacio Vera",
+      "email": "ignacio.vera@example.cl",
+      "telefono": "+56 9 5544 3322",
+      "bloqueado": false
+    },
+    {
+      "id": 4,
+      "nombre": "Paulina Cárdenas",
+      "email": "p.cardenas@example.cl",
+      "telefono": "+56 9 6677 8899",
+      "bloqueado": false
+    }
+  ]
+}

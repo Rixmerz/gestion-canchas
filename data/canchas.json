@@ -1,0 +1,42 @@
+{
+  "recinto": "Complejo Deportivo Los Leones — Ñuñoa, Santiago",
+  "horario": {
+    "apertura": "09:00",
+    "cierre": "23:00",
+    "duracion_bloque_min": 60
+  },
+  "canchas": [
+    {
+      "id": 1,
+      "nombre": "Cancha 1 — Techada",
+      "tipo": "Fútbol 7",
+      "superficie": "Pasto sintético",
+      "precio_hora": 45000,
+      "activa": true
+    },
+    {
+      "id": 2,
+      "nombre": "Cancha 2 — Norte",
+      "tipo": "Fútbol 7",
+      "superficie": "Pasto sintético",
+      "precio_hora": 40000,
+      "activa": true
+    },
+    {
+      "id": 3,
+      "nombre": "Cancha 3 — Baby",
+      "tipo": "Baby fútbol",
+      "superficie": "Cemento pulido",
+      "precio_hora": 28000,
+      "activa": true
+    },
+    {
+      "id": 4,
+      "nombre": "Cancha 4 — En mantención",
+      "tipo": "Fútbol 11",
+      "superficie": "Pasto natural",
+      "precio_hora": 90000,
+      "activa": false
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{% extends "canchas/base.html" %}
+{% block titulo %}Gestión de reservas{% endblock %}
+
+{% block contenido %}
+<h1>Gestión de reservas</h1>
+<p class="sub">
+  Pantalla del administrador. Una solicitud se convierte en <strong>reserva real</strong>
+  solo cuando el pago se confirma aquí (RN-03). Hora del recinto: {{ ahora|date:"d/m/Y H:i" }}.
+</p>
+
+<div class="tarjeta">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Cancha</th><th>Cliente</th><th>Bloque</th>
+        <th>Estado</th><th>Vence</th><th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reservas %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.cancha.nombre|default:"—" }}</td>
+          <td>{{ r.cliente.nombre|default:"—" }}</td>
+          <td>{{ r.inicio_dt|date:"d/m H:i" }} – {{ r.fin_dt|date:"H:i" }}</td>
+          <td>
+            <span class="chip {{ r.estado|lower }}">{{ r.estado }}</span>
+          </td>
+          <td>{% if r.es_pendiente %}{{ r.vence_dt|date:"d/m H:i" }}{% else %}—{% endif %}</td>
+          <td>
+            {% if r.es_pendiente %}
+              <form method="post" action="{% url 'canchas:confirmar_pago' r.id %}" style="display:inline">
+                {% csrf_token %}<button type="submit" class="primario">Marcar pagada</button>
+              </form>
+            {% endif %}
+            {% if r.es_vigente %}
+              <form method="post" action="{% url 'canchas:cancelar' r.id %}" style="display:inline">
+                {% csrf_token %}<button type="submit" class="peligro">Cancelar</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7">Todavía no hay reservas. Solicita una desde la agenda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
